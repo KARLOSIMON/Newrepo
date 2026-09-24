@@ -26,3 +26,16 @@ Expected compound:
 The private repository's recent GitHub Actions jobs repeatedly received `runner_id=0` and executed zero steps. This public lab removes private-artifact dependencies and uses committed canonical fixtures so public Actions can execute the PP-MAP proofs directly.
 
 Production status remains **UNCLASSIFIED**.
+
+
+## Public CI status
+
+Public Actions is operational.
+
+- green run: 35939330707
+- head: `2df96ce5cdd2ad682ab2d0c9c636fd2a2d33a234`
+- artifact: 10783882741
+- artifact digest: `sha256:03081f8751265e300dc596521284e34730d17788f93925c8b568775c87bac0c9`
+- generated compound OTBM SHA-256: `209f82e6e8b2829c0aa98fa351a870ab024a5fcfddca04758623b299e11a9677`
+
+PP-MAP execution should continue in this public repository. The private repository remains a historical/source surface and should not be used for routine PP-MAP Actions while its hosted-runner allocation is failing.
