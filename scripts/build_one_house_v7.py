@@ -152,7 +152,7 @@ def main():
   "roof":{"north":ROOF_NORTH,"fill":ROOF_FILL,"south_edge":ROOF_SOUTH_EDGE,"roles":{f"{x},{y}":v for (x,y),v in roofroles.items()}},
   "wall":BASE_WALL,"facade":FACADE,"wall_roles":{f"{x},{y}":v for (x,y),v in wallroles.items()},
   "otbm":{"file":otbm.name,"bytes":len(payload),"sha256":hashlib.sha256(payload).hexdigest(),"exact_parseback":True},
-  "render":{"file":"one_house_v6.png","close":"one_house_v6_close.png","exact_current_dat_spr":True,"image_generation_used":False},
+  "render":{"file":"one_house_v7.png","close":"one_house_v7_close.png","exact_current_dat_spr":True,"image_generation_used":False},
   "production_status":"UNCLASSIFIED"
  }
  (a.out/"one_house_v7.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
