@@ -146,7 +146,7 @@ def main():
   (a.out/f"{name}.otbm").write_bytes(payload)
   img=render(pos,items,sprites,name);img.convert("RGB").save(a.out/f"{name}.png",optimize=True)
   rows.append((name,img))
-  report[name]={"roles":roles,"otbm":f"{name}.otbm","render":f"{name}.png"}
+  report[name]={"roles":{f"{x},{y}":v for (x,y),v in roles.items()},"otbm":f"{name}.otbm","render":f"{name}.png"}
  # montage
  out=Image.new("RGB",(940,780),(18,20,24))
  for i,(name,img) in enumerate(rows):
