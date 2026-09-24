@@ -1,0 +1,43 @@
+name: PP-MAP wall family atlas
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/otsp_humanoid_generator.py"
+      - "scripts/build_pp_map_001_lab.py"
+      - "scripts/discover_pp_map_001_wall_families.py"
+      - ".github/workflows/pp-map-wall-family-atlas.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  atlas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned OTSP corpus
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/peonso/opentibia_sprite_pack.git .work/otsp-source
+          git -C .work/otsp-source fetch --depth 1 origin ae88e1828671b349e729dd21177dde15ea41e123
+          git -C .work/otsp-source checkout --detach ae88e1828671b349e729dd21177dde15ea41e123
+
+      - name: Install renderer dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet pillow==11.3.0
+
+      - name: Render current wall family candidates
+        run: |
+          python3 scripts/discover_pp_map_001_wall_families.py             --otsp .work/otsp-source             --out .work/wall-atlas
+
+      - name: Upload wall atlas
+        uses: actions/upload-artifact@v4
+        with:
+          name: pp-map-wall-family-atlas
+          path: .work/wall-atlas/
+          if-no-files-found: error
+          retention-days: 7
