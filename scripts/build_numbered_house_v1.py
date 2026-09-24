@@ -53,13 +53,15 @@ ROOF_MATRIX=[
 
 # Current light timber wall family and its matching visible variants.
 # 786-789: base wall/pole/corner with the darker timber lower edge.
-# 790/792: matching window substitutions.
-# 1061: matching closed-looking horizontal door piece.
-EAST_WALL=786
-EAST_WINDOW=790
-SOUTH_START=788
-SOUTH_WINDOW=792
-SOUTH_DOOR=1061
+# 790/792: matching vertical/horizontal window substitutions.
+# East screen column uses the east-west/horizontal wall face (787/792).
+# South screen row uses the north-south/vertical facade face (786/790/1058).
+# 1058 is the matching closed-looking vertical door piece.
+EAST_WALL=787
+EAST_WINDOW=792
+SOUTH_START=786
+SOUTH_WINDOW=790
+SOUTH_DOOR=1058
 SOUTHEAST_CORNER=789
 
 # Top-left visible numbered-cell screen tile within the preview/world.
