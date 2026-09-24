@@ -173,3 +173,5 @@ def main():
  (a.out/"one_house_v5.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
  print(json.dumps(report,indent=2,sort_keys=True))
 if __name__=="__main__":main()
+
+# public-ci-trigger: one-house-v5
