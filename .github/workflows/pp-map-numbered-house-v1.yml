@@ -1,0 +1,62 @@
+name: PP-MAP numbered house v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_numbered_house_v1.py"
+      - "scripts/build_pp_map_001_lab.py"
+      - "scripts/otsp_humanoid_generator.py"
+      - "scripts/extract_otb_item_client_ids.py"
+      - ".github/workflows/pp-map-numbered-house-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  house:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned OTSP corpus
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/peonso/opentibia_sprite_pack.git .work/otsp-source
+          git -C .work/otsp-source fetch --depth 1 origin ae88e1828671b349e729dd21177dde15ea41e123
+          git -C .work/otsp-source checkout --detach ae88e1828671b349e729dd21177dde15ea41e123
+
+      - name: Install renderer dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet pillow==11.3.0
+
+      - name: Build and render exactly one numbered house
+        run: |
+          set -euo pipefail
+          python3 scripts/build_numbered_house_v1.py             --otsp .work/otsp-source             --out .work/numbered-house-v1
+
+      - name: Verify one-house contract
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          p=json.loads(pathlib.Path(".work/numbered-house-v1/numbered_house_v1.json").read_text())
+          assert p["result"]=="PASS"
+          assert p["proof_key"]=="USER_NUMBERED_HOUSE_1_16_V1"
+          assert p["scope"]=="ONE_HOUSE_ONLY"
+          assert p["screen_matrix"]==[[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
+          assert p["roof_matrix"]==[[902,907,901],[903,908,904],[909,905,906]]
+          assert p["otbm"]["exact_stack_parseback"] is True
+          assert p["render"]["exact_current_dat_spr"] is True
+          assert p["render"]["image_generation_used"] is False
+          assert pathlib.Path(".work/numbered-house-v1/numbered_house_v1.png").is_file()
+          print("PP-MAP numbered house v1: PASS")
+          PY
+
+      - name: Upload numbered house
+        uses: actions/upload-artifact@v4
+        with:
+          name: pp-map-numbered-house-v1
+          path: .work/numbered-house-v1/
+          if-no-files-found: error
+          retention-days: 14
