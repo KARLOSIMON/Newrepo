@@ -1,0 +1,55 @@
+name: PP-MAP one timber house v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_one_timber_house_v2.py"
+      - "scripts/build_pp_map_001_lab.py"
+      - "scripts/otsp_humanoid_generator.py"
+      - "scripts/extract_otb_item_client_ids.py"
+      - ".github/workflows/pp-map-one-timber-house-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  house:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned OTSP corpus
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/peonso/opentibia_sprite_pack.git .work/otsp-source
+          git -C .work/otsp-source fetch --depth 1 origin ae88e1828671b349e729dd21177dde15ea41e123
+          git -C .work/otsp-source checkout --detach ae88e1828671b349e729dd21177dde15ea41e123
+      - name: Install renderer dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet pillow==11.3.0
+      - name: Build and render one timber house
+        run: |
+          python3 scripts/build_one_timber_house_v2.py             --otsp .work/otsp-source             --out .work/one-timber-house-v2
+      - name: Verify one-house output
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path(".work/one-timber-house-v2")
+          p=json.loads((root/"one_timber_house_v2.json").read_text())
+          assert p["result"]=="PASS"
+          assert p["scope"]=="ONE_HOUSE_ONLY"
+          assert p["roof_matrix"]==[[902,907,901],[903,908,904],[909,905,906]]
+          assert p["otbm"]["exact_parseback"] is True
+          assert p["render"]["exact_current_dat_spr"] is True
+          assert p["render"]["image_generation_used"] is False
+          assert (root/"one_timber_house_v2.png").is_file()
+          print("PP-MAP one timber house v2: PASS")
+          PY
+      - name: Upload one timber house
+        uses: actions/upload-artifact@v4
+        with:
+          name: pp-map-one-timber-house-v2
+          path: .work/one-timber-house-v2/
+          if-no-files-found: error
+          retention-days: 14
