@@ -1,0 +1,39 @@
+name: PP-MAP public compound smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/verify_compound.py"
+      - "fixtures/encoded/**"
+      - ".github/workflows/pp-map-public-compound-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize committed canonical fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p fixtures
+          cat fixtures/encoded/dogleg_base.otbm.b64.part* | base64 --decode > fixtures/dogleg_base.otbm
+          cat fixtures/encoded/exact_3x3_house.otbm.b64 > fixtures/exact_3x3_house.otbm
+          sha256sum fixtures/dogleg_base.otbm fixtures/exact_3x3_house.otbm
+
+      - name: Run public self-contained compound proof
+        run: python3 scripts/verify_compound.py
+
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: pp-map-public-compound-smoke
+          path: out/
+          if-no-files-found: error
+          retention-days: 14
