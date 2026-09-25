@@ -181,7 +181,7 @@ jobs:
           cp .work/pocketpvp-v7-server.log .work/v7-validation-evidence/ 2>/dev/null
           {
             echo "source_private_branch=work/licensed-slice-v1"
-            echo "source_private_head=cce928af3578494fb4114ecf321b037dac6bb874"
+            echo "source_private_head=8469c9a58e378c1e770b5277235edee712ae2d4c"
             echo "public_validation_commit=${GITHUB_SHA}"
             echo "otsp_commit=${OTSP_SHA}"
           } > .work/v7-validation-evidence/provenance.txt
