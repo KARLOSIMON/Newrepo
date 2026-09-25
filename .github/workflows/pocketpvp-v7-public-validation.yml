@@ -1,0 +1,200 @@
+name: PocketPVP V7 public validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "work/v7-public-validation"
+    paths:
+      - "v7_validation/**"
+      - "scripts/build_pocketpvp_live_assets_v7.py"
+      - "scripts/build_dat_structure_catalog.py"
+      - ".github/workflows/pocketpvp-v7-public-validation.yml"
+
+permissions:
+  contents: read
+
+env:
+  OTSP_SHA: ae88e1828671b349e729dd21177dde15ea41e123
+
+jobs:
+  validate-v7:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned OTSP source
+        run: |
+          set -euo pipefail
+          mkdir -p .work
+          git clone --filter=blob:none --no-checkout https://github.com/peonso/opentibia_sprite_pack.git .work/otsp-source
+          git -C .work/otsp-source fetch --depth 1 origin "${OTSP_SHA}"
+          git -C .work/otsp-source checkout --detach "${OTSP_SHA}"
+          test "$(git -C .work/otsp-source rev-parse HEAD)" = "${OTSP_SHA}"
+
+      - name: Certify licensed asset passthrough
+        run: |
+          set -euo pipefail
+          python3 scripts/build_pocketpvp_live_assets_v7.py
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path(".work/pocketpvp_live_assets_v1/pocketpvp_live_asset_certification.json")
+          cert = json.loads(p.read_text())
+
+          assert cert["result"] == "PASS"
+          assert cert["source"]["commit"] == "ae88e1828671b349e729dd21177dde15ea41e123"
+          assert cert["contracts"]["licensed_source_passthrough"] is True
+          assert cert["contracts"]["pixels_modified"] is False
+          assert cert["contracts"]["dat_modified"] is False
+          assert cert["contracts"]["spr_modified"] is False
+          assert cert["contracts"]["custom_sprite_generation_used"] is False
+          assert cert["source"]["dat_sha256"] == cert["output"]["dat_sha256"]
+          assert cert["source"]["spr_sha256"] == cert["output"]["spr_sha256"]
+          assert cert["frozen_manifest"]["outfit_ids"] == [17, 18]
+          assert cert["frozen_manifest"]["effect_ids"] == [1, 3]
+          print("LICENSED_ASSET_GATE=PASS")
+          print("DAT_SHA256=" + cert["source"]["dat_sha256"])
+          print("SPR_SHA256=" + cert["source"]["spr_sha256"])
+          PY
+
+      - name: Validate frozen V1 world contract
+        run: |
+          set -euo pipefail
+          python3 v7_validation/mobile1041/build_pocketpvp_world.py --self-test
+          rm -rf .work/v7-world
+          python3 v7_validation/mobile1041/build_pocketpvp_world.py .work/v7-world
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          world = json.loads(Path(".work/v7-world/pocketpvp-world-contract.json").read_text())
+          assert world["world"] == "PocketPVP Licensed Slice V1"
+          assert world["map"]["temple"] == [33008, 33018, 7]
+          assert world["building"]["roof_alignment"] == {"x_delta": 0, "y_delta": 0, "z_delta": -1}
+          assert world["licensed_visual_manifest"]["grass"] == [101,102,103,104,105]
+          assert world["licensed_visual_manifest"]["roof"] == [189,190,508]
+          assert world["licensed_visual_manifest"]["starter_sword"] == 1677
+          assert world["licensed_visual_manifest"]["starter_backpack"] == 2099
+          assert world["spawns"][0]["name"] == "RPG Rival"
+          assert world["mechanics_contract"]["custom_sprite_generation"] is False
+          print("WORLD_CONTRACT_GATE=PASS")
+          PY
+
+      - name: Build V7 server image
+        run: |
+          set -euo pipefail
+          docker build -t pocketpvp-v7-public ./v7_validation/mobile1041
+
+      - name: Inspect packaged server
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh pocketpvp-v7-public -c '
+            set -eu
+            test -s /srv/data/world/pocketpvp.otbm
+            test -s /srv/data/world/pocketpvp-spawn.xml
+            test -s /srv/data/world/pocketpvp-world-contract.json
+            grep -F "\"world\": \"PocketPVP Licensed Slice V1\"" /srv/data/world/pocketpvp-world-contract.json
+            grep -F "\"custom_sprite_generation\": false" /srv/data/world/pocketpvp-world-contract.json
+            grep -F "\"starter_sword\": 1677" /srv/data/world/pocketpvp-world-contract.json
+            grep -F "\"starter_backpack\": 2099" /srv/data/world/pocketpvp-world-contract.json
+            grep -F "monster name=\"RPG Rival\"" /srv/data/world/pocketpvp-spawn.xml
+            grep -F "POCKETPVP_LICENSED_SLICE_V1" "/srv/data/monster/rpg rival.xml"
+            grep -F "<look type=\"18\" />" "/srv/data/monster/rpg rival.xml"
+            grep -F "fromid=\"1677\" toid=\"1799\"" /srv/data/items/items.xml
+            grep -F "fromid=\"2099\" toid=\"2102\"" /srv/data/items/items.xml
+            ! grep -E "Goblin|Mechanical Tactician" /srv/data/world/pocketpvp-spawn.xml
+            ! grep -F "POCKETPVP_COMBAT_CONTENT_V1" /srv/data/items/items.xml
+            ! grep -F "POCKETPVP_BEACON_TORCH" /srv/data/items/items.xml
+          '
+          echo "SERVER_PACKAGE_GATE=PASS"
+
+      - name: Boot server and verify player/loadout
+        run: |
+          set -euo pipefail
+          docker run -d --name pocketpvp-v7-public \
+            -p 127.0.0.1:17171:7171 \
+            -p 127.0.0.1:17172:7172 \
+            -e OT_PUBLIC_IP=127.0.0.1 \
+            -e OT_PUBLIC_GAME_PORT=17172 \
+            -e OT_SERVER_NAME=PocketPVP \
+            pocketpvp-v7-public
+
+          ok=0
+          for i in $(seq 1 150); do
+            docker logs pocketpvp-v7-public > .work/pocketpvp-v7-server.log 2>&1 || true
+            if grep -Fq '[POCKETPVP] V1 player seed verified: GM Karlo|1|17|1|33008,33018,7' .work/pocketpvp-v7-server.log; then
+              if python3 - <<'PY'
+          import socket
+          for port in (17171, 17172):
+              with socket.create_connection(("127.0.0.1", port), timeout=2):
+                  pass
+          print("PocketPVP login/game TCP ports open")
+          PY
+              then
+                ok=1
+                break
+              fi
+            fi
+
+            if ! docker ps --format '{{.Names}}' | grep -qx pocketpvp-v7-public; then
+              break
+            fi
+            sleep 1
+          done
+
+          cat .work/pocketpvp-v7-server.log
+          test "$ok" -eq 1
+          ! grep -Eqi 'unable to load map|could not load map|failed to load map|cannot load map' .work/pocketpvp-v7-server.log
+
+          docker exec pocketpvp-v7-public mariadb \
+            -h 127.0.0.1 -P 3306 -uopentibia -popentibia-mobile-1041 \
+            opentibia_mobile1041 -Nse \
+            "SELECT CONCAT(name,'|',group_id,'|',looktype,'|',town_id,'|',posx,',',posy,',',posz) FROM players WHERE id=9001;" \
+            | grep -Fx 'GM Karlo|1|17|1|33008,33018,7'
+
+          docker exec pocketpvp-v7-public mariadb \
+            -h 127.0.0.1 -P 3306 -uopentibia -popentibia-mobile-1041 \
+            opentibia_mobile1041 -Nse \
+            "SELECT CONCAT(pid,'|',itemtype,'|',count) FROM player_items WHERE player_id=9001 AND itemtype=2099;" \
+            | grep -Fx '3|2099|1'
+
+          docker exec pocketpvp-v7-public mariadb \
+            -h 127.0.0.1 -P 3306 -uopentibia -popentibia-mobile-1041 \
+            opentibia_mobile1041 -Nse \
+            "SELECT CONCAT(pi.pid,'|',pi.itemtype,'|',p.skill_sword) FROM player_items pi JOIN players p ON p.id=pi.player_id WHERE pi.player_id=9001 AND pi.itemtype=1677;" \
+            | grep -Fx '6|1677|80'
+
+          echo "SERVER_BOOT_GATE=PASS"
+
+      - name: Collect validation evidence
+        if: always()
+        run: |
+          set +e
+          mkdir -p .work/v7-validation-evidence
+          cp .work/pocketpvp_live_assets_v1/pocketpvp_live_asset_certification.json .work/v7-validation-evidence/ 2>/dev/null
+          cp .work/v7-world/pocketpvp-world-contract.json .work/v7-validation-evidence/ 2>/dev/null
+          cp .work/pocketpvp-v7-server.log .work/v7-validation-evidence/ 2>/dev/null
+          {
+            echo "source_private_branch=work/licensed-slice-v1"
+            echo "source_private_head=cce928af3578494fb4114ecf321b037dac6bb874"
+            echo "public_validation_commit=${GITHUB_SHA}"
+            echo "otsp_commit=${OTSP_SHA}"
+          } > .work/v7-validation-evidence/provenance.txt
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f pocketpvp-v7-public 2>/dev/null || true
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketpvp-v7-public-validation-evidence
+          path: .work/v7-validation-evidence
+          if-no-files-found: warn
+          retention-days: 30
