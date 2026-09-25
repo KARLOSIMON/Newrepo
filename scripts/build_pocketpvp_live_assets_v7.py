@@ -85,7 +85,7 @@ def build(out_dir: Path, otsp_root: Path) -> dict[str, Any]:
     by_ref = {t["owner_ref"]: t for t in catalog["things"]}
 
     items = {str(iid): thing_snapshot(by_ref, f"item:{iid}") for iid in ITEM_IDS}
-    outfits = {str(iid): thing_snapshot(by_ref, f"outfit:{iid}") for iid in OUTFIT_IDS}
+    outfits = {str(iid): thing_snapshot(by_ref, f"creature:{iid}") for iid in OUTFIT_IDS}
     effects = {str(iid): thing_snapshot(by_ref, f"effect:{iid}") for iid in EFFECT_IDS}
 
     cert = {
